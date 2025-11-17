@@ -102,7 +102,7 @@ def mk_ticket_id(user_id: int) -> str:
     return f"{user_id}_{int(datetime.now(timezone.utc).timestamp())}"
 
 PRIO_ICONS = {"high":"🔴","medium":"🟡","low":"🟢"}
-CATEGORIES = {"Обходы":"🌐 Обходы", "VPN":"🛜 VPN", "Оплата":"💳 Оплата", "Реферальная/партнерская программа":"📢 Реферальная/партнерская программа", "Другое":"Другое"}
+CATEGORIES = {"Обходы":"Обходы", "VPN":"VPN", "Оплата":"Оплата", "Реферальная/партнерская программа":"Реферальная/партнерская программа", "Другое":"Другое"}
 
 # Keyboards (без изменений)
 def client_priority_kb() -> InlineKeyboardMarkup:
