@@ -102,7 +102,7 @@ def mk_ticket_id(user_id: int) -> str:
     return f"{user_id}_{int(datetime.now(timezone.utc).timestamp())}"
 
 PRIO_ICONS = {"high":"🔴","medium":"🟡","low":"🟢"}
-CATEGORIES = {"Bypasses":"🌐 Обходы", "VPN":"🛜 VPN", "Payment":"💳 Оплата", "Program":"📢 Реферальная/партнерская программа", "Other":"Другое"}
+CATEGORIES = {"Обходы":"🌐 Обходы", "VPN":"🛜 VPN", "Оплата":"💳 Оплата", "Реферальная/партнерская программа":"📢 Реферальная/партнерская программа", "Другое":"Другое"}
 
 # Keyboards (без изменений)
 def client_priority_kb() -> InlineKeyboardMarkup:
@@ -114,11 +114,11 @@ def client_priority_kb() -> InlineKeyboardMarkup:
 
 def client_category_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([[
-        InlineKeyboardButton("🌐 Обходы", callback_data="cat:Bypasses"),
+        InlineKeyboardButton("🌐 Обходы", callback_data="cat:Обходы"),
         InlineKeyboardButton("🛜 VPN", callback_data="cat:VPN"),
-        InlineKeyboardButton("💳 Оплата", callback_data="cat:Payment"),
-        InlineKeyboardButton("📢 Реферальная/партнерская программа", callback_data="cat:Program"),
-        InlineKeyboardButton("Другое", callback_data="cat:Other")
+        InlineKeyboardButton("💳 Оплата", callback_data="cat:Оплата"),
+        InlineKeyboardButton("📢 Реферальная/партнерская программа", callback_data="cat:Реферальная/партнерская программа"),
+        InlineKeyboardButton("Другое", callback_data="cat:Другое")
     ]])
 
 
@@ -382,7 +382,7 @@ async def faq_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data.startswith("faq_cat:"):
         category = data.split(":",1)[1]
         await q.edit_message_text(
-            f"❓ Вопросы в категории {category}:",
+            f"❓ Вопросы в категории: {category}:",
             reply_markup=faq_questions_kb(category)
         )
         return
