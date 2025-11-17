@@ -72,14 +72,13 @@ def faq_categories_kb():
     buttons = [[InlineKeyboardButton(cat, callback_data=f"faq_cat:{cat}")] for cat in CONTENT.keys()]
     return InlineKeyboardMarkup(buttons)
 
-    buttons.append([InlineKeyboardButton("❗ Нет моего вопроса", callback_data=f"faq_q:{category}:ticket")])
-    buttons.append([InlineKeyboardButton("⬅️ Назад", callback_data="faq_back")])
 
 def faq_questions_kb(category: str):
     if category not in CONTENT:
         category = "Другое"
     buttons = [[InlineKeyboardButton(q, callback_data=f"faq_q:{category}:{i}")]
                for i, q in enumerate(CONTENT[category].keys())]
+    buttons.append([InlineKeyboardButton("❗ Нет моего вопроса", callback_data=f"faq_q:{category}:ticket")])
     buttons.append([InlineKeyboardButton("⬅️ Назад", callback_data="faq_back")])
     return InlineKeyboardMarkup(buttons)
 
@@ -368,10 +367,20 @@ async def faq_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
+    # Выбор категории
+    if data.startswith("faq_cat:"):
+        category = data.split(":",1)[1]
+        await q.edit_message_text(
+            f"❓ Вопросы в категории {category}:",
+            reply_markup=faq_questions_kb(category)
+        )
+        return
+
+    # Выбор конкретного вопроса
     if data.startswith("faq_q:"):
         _, category, idx = data.split(":")
         if idx == "ticket":
-            # запускаем создание тикета
+            # Запускаем создание тикета
             context.user_data["creating_ticket"] = {
                 "user_id": q.from_user.id,
                 "username": q.from_user.username or q.from_user.first_name
@@ -382,34 +391,16 @@ async def faq_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        # если idx не "ticket", тогда нормально приводим к числу
-        idx = int(idx)
-        question, answer = FAQ[category][idx]
-        await q.edit_message_text(
-            f"❓ {question}\n\n💡 {answer}",
-            reply_markup=faq_answer_kb(category)
-        )
-
-    # Выбор конкретного вопроса
-    if data.startswith("faq_q:"):
-        _, category, idx = data.split(":")
+        # idx — число, берем вопрос из CONTENT
         idx = int(idx)
         category_dict = CONTENT.get(category, CONTENT["Другое"])
         questions_list = list(category_dict.items())
         question, answer = questions_list[idx]
 
-        if answer == "create_ticket":
-            # Запускаем процесс создания тикета только через кнопку
-            context.user_data["creating_ticket"] = {"user_id": q.from_user.id, "username": q.from_user.username or q.from_user.first_name}
-            await q.edit_message_text(
-                "❗ Вы не нашли ответ? Создадим тикет для оператора. Выберите срочность:",
-                reply_markup=client_priority_kb()
-            )
-        else:
-            await q.edit_message_text(
-                f"❓ {question}\n\n💡 {answer}",
-                reply_markup=faq_answer_kb(category)
-            )
+        await q.edit_message_text(
+            f"❓ {question}\n\n💡 {answer}",
+            reply_markup=faq_answer_kb(category)
+        )
 
 # rating handler (без изменений)
 async def rating_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
