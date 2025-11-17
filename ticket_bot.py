@@ -116,7 +116,7 @@ def client_category_kb() -> InlineKeyboardMarkup:
     buttons = [
         InlineKeyboardButton(CATEGORIES["Обходы"], callback_data="cat:Обходы"),
         InlineKeyboardButton(CATEGORIES["VPN"], callback_data="cat:VPN"),
-        InlineKeyboardButton(CATEGORIES["Оплата"], callback_data="cat:Оплата")
+        InlineKeyboardButton(CATEGORIES["Оплата"], callback_data="cat:Оплата"),
         InlineKeyboardButton(CATEGORIES["Реферальная/партнерская программа"], callback_data="cat:Реферальная/партнерская программа"),
         InlineKeyboardButton(CATEGORIES["Другое"], callback_data="cat:Другое")
     ]
