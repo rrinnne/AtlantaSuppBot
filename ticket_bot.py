@@ -370,7 +370,8 @@ async def faq_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if data.startswith("faq_q:"):
         _, category, idx = data.split(":")
-        if idx == "ticket":  # спец. кнопка "Нет моего вопроса"
+        if idx == "ticket":
+            # запускаем создание тикета
             context.user_data["creating_ticket"] = {
                 "user_id": q.from_user.id,
                 "username": q.from_user.username or q.from_user.first_name
@@ -381,11 +382,9 @@ async def faq_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
+        # если idx не "ticket", тогда нормально приводим к числу
         idx = int(idx)
-        category_dict = CONTENT.get(category, CONTENT["Другое"])
-        questions_list = list(category_dict.items())
-        question, answer = questions_list[idx]
-
+        question, answer = FAQ[category][idx]
         await q.edit_message_text(
             f"❓ {question}\n\n💡 {answer}",
             reply_markup=faq_answer_kb(category)
@@ -501,7 +500,7 @@ def main():
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", cmd_start))
-    app.add_handler(CallbackQueryHandler(faq_cb, pattern=r"^faq_(cat|back|q)"))
+    app.add_handler(CallbackQueryHandler(faq_cb, pattern=r"^faq_"))
     app.add_handler(CallbackQueryHandler(client_cb, pattern=r"^(prio|cat):"))
 
     # MODIFIED: разделил обработчики для текста и фото в привате
