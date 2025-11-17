@@ -79,7 +79,7 @@ def faq_categories_kb():
 
 def faq_questions_kb(category: str):
     if category not in CONTENT:
-        category = "Другое"
+        category = "❓ Другое"
 
     buttons = [
         [InlineKeyboardButton(q, callback_data=f"faq_q:{category}:{i}")]
@@ -412,7 +412,7 @@ async def faq_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # idx — число, берем вопрос из CONTENT
         idx = int(idx)
-        category_dict = CONTENT.get(category, CONTENT["Другое"])
+        category_dict = CONTENT.get(category, CONTENT["❓ Другое"])
         questions_list = list(category_dict.items())
         question, answer = questions_list[idx]
 
