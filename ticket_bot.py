@@ -118,7 +118,7 @@ def mk_ticket_id(user_id: int) -> str:
     return f"{user_id}_{int(datetime.now(timezone.utc).timestamp())}"
 
 PRIO_ICONS = {"high":"🔴","medium":"🟡","low":"🟢"}
-CATEGORIES = {"Обходы":"Обходы", "VPN":"VPN", "Оплата":"Оплата", "Реферальная/партнерская программа":"Реферальная/партнерская программа", "Другое":"Другое"}
+CATEGORIES = {"Обходы":"Обходы", "VPN":"VPN", "Оплата":"Оплата", "Реферальная/партнерская программа":"Программа", "Другое":"Другое"}
 
 # Keyboards (без изменений)
 def client_priority_kb() -> InlineKeyboardMarkup:
@@ -133,7 +133,7 @@ def client_category_kb() -> InlineKeyboardMarkup:
         [InlineKeyboardButton("Обходы", callback_data="cat:Обходы")],
         [InlineKeyboardButton("VPN", callback_data="cat:VPN")],
         [InlineKeyboardButton("Оплата", callback_data="cat:Оплата")],
-        [InlineKeyboardButton("Реферальная/партнерская программа", callback_data="cat:Реферальная/партнерская программа")],
+        [InlineKeyboardButton("Реферальная/партнерская программа", callback_data="cat:Программа")],
         [InlineKeyboardButton("Другое", callback_data="cat:Другое")]
     ]
     return InlineKeyboardMarkup(buttons)
