@@ -125,10 +125,10 @@ def client_priority_kb() -> InlineKeyboardMarkup:
 
 def client_category_kb() -> InlineKeyboardMarkup:
     buttons = [
-        [InlineKeyboardButton("🌐Обходы", callback_data="cat:Обходы")],
-        [InlineKeyboardButton("🚀VPN", callback_data="cat:VPN")],
-        [InlineKeyboardButton("💳Оплата", callback_data="cat:Оплата")],
-        [InlineKeyboardButton("❓Другое", callback_data="cat:Другое")]
+        [InlineKeyboardButton("Обходы", callback_data="cat:Обходы")],
+        [InlineKeyboardButton("VPN", callback_data="cat:VPN")],
+        [InlineKeyboardButton("Оплата", callback_data="cat:Оплата")],
+        [InlineKeyboardButton("Другое", callback_data="cat:Другое")]
     ]
     return InlineKeyboardMarkup(buttons)
 
