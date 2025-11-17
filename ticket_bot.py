@@ -113,13 +113,16 @@ def client_priority_kb() -> InlineKeyboardMarkup:
     ]])
 
 def client_category_kb() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([[
-        InlineKeyboardButton("🌐 Обходы", callback_data="cat:Обходы"),
-        InlineKeyboardButton("🛜 VPN", callback_data="cat:VPN"),
-        InlineKeyboardButton("💳 Оплата", callback_data="cat:Оплата"),
-        InlineKeyboardButton("📢 Реферальная/партнерская программа", callback_data="cat:Реферальная/партнерская программа"),
-        InlineKeyboardButton("Другое", callback_data="cat:Другое")
-    ]])
+    buttons = [[
+        InlineKeyboardButton(CATEGORIES["Обходы"], callback_data="cat:Обходы"),
+        InlineKeyboardButton(CATEGORIES["VPN"], callback_data="cat:VPN"),
+        InlineKeyboardButton(CATEGORIES["Оплата"], callback_data="cat:Оплата")
+    ],
+    [
+        InlineKeyboardButton(CATEGORIES["Реферальная/партнерская программа"], callback_data="cat:Реферальная/партнерская программа"),
+        InlineKeyboardButton(CATEGORIES["Другое"], callback_data="cat:Другое")
+    ]]
+    return InlineKeyboardMarkup(buttons)
 
 
 def manager_thread_kb(ticket_id: str, taken_by: Optional[int]) -> InlineKeyboardMarkup:
