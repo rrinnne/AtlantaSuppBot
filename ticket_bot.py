@@ -87,6 +87,19 @@ def rating_kb(ticket_id: str) -> InlineKeyboardMarkup:
         InlineKeyboardButton("⭐️⭐️⭐️⭐️⭐️", callback_data=f"rate:{ticket_id}:5")
     ]])
 
+async def ensure_reviews_thread(context: ContextTypes.DEFAULT_TYPE):
+    reviews_id = STATE.get("reviews_thread_id")
+    if not reviews_id:
+        try:
+            topic = await context.bot.create_forum_topic(chat_id=CHANNEL_ID, name="⭐ Отзывы")
+            reviews_id = topic.message_thread_id
+            STATE["reviews_thread_id"] = reviews_id
+            save_state(STATE)
+        except Exception as e:
+            log.error("Failed to create reviews thread: %s", e)
+            return None
+    return reviews_id
+
 # Flow: /start -> priority -> category -> create thread (без изменений)
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.type != "private":
@@ -173,6 +186,26 @@ async def client_dm(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     user = update.effective_user
     msg: Message = update.message
+    # --- NEW: обработка текстового отзыва после оценки ---
+    if context.user_data.get("await_review"):
+        ticket_id = context.user_data["await_review"]
+        reviews_thread = await ensure_reviews_thread(context)
+
+        try:
+            await context.bot.send_message(
+                chat_id=CHANNEL_ID,
+                message_thread_id=reviews_thread,
+                text=f"⭐ Отзыв по тикету {ticket_id} от @{user.username or user.id}:\n\n{msg.text}"
+            )
+        except Exception as e:
+            log.error("Failed to post review: %s", e)
+
+        context.user_data.pop("await_review", None)
+
+        await msg.reply_text("Спасибо! Ваш отзыв отправлен 💛")
+        return
+    # --- END NEW ---
+
     # find ticket
     ticket = None
     for t in TICKETS.values():
@@ -289,9 +322,19 @@ async def rating_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     t = TICKETS.get(ticket_id)
     if not t:
         return
+
     t["rating"] = int(score)
     save_state(STATE)
+
+    # благодарность
     await q.edit_message_text(f"Спасибо! Вы оценили поддержку на {score} ⭐️")
+
+    # включаем режим ожидания отзыва
+    context.user_data["await_review"] = ticket_id
+
+    # просим оставить текст
+    await q.message.reply_text("✍️ Пожалуйста, напишите текстовый отзыв о работе поддержки.")
+
     await ensure_logs_thread(context, f"Оценка тикета {ticket_id}: {score}")
 
 # close ticket helper (без изменений)
