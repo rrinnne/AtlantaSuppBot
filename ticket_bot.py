@@ -109,7 +109,7 @@ def mk_ticket_id(user_id: int) -> str:
     return f"{user_id}_{int(datetime.now(timezone.utc).timestamp())}"
 
 PRIO_ICONS = {"high":"🔴","medium":"🟡","low":"🟢"}
-CATEGORIES = {"Обходы":"🌐 Обходы", "VPN":"🚀 VPN", "Оплата":"💳 Оплата", "Другое":"❓ Другое"}
+CATEGORIES = {"Обходы":"Обходы", "VPN":"VPN", "Оплата":"Оплата", "Другое":"Другое"}
 
 # Keyboards (без изменений)
 def client_priority_kb() -> InlineKeyboardMarkup:
@@ -121,10 +121,10 @@ def client_priority_kb() -> InlineKeyboardMarkup:
 
 def client_category_kb() -> InlineKeyboardMarkup:
     buttons = [
-        [InlineKeyboardButton("🌐 Обходы", callback_data="cat:Обходы")],
-        [InlineKeyboardButton("🚀 VPN", callback_data="cat:VPN")],
-        [InlineKeyboardButton("💳 Оплата", callback_data="cat:Оплата")],
-        [InlineKeyboardButton("❓  Другое", callback_data="cat:Другое")]
+        [InlineKeyboardButton("Обходы", callback_data="cat:Обходы")],
+        [InlineKeyboardButton("VPN", callback_data="cat:VPN")],
+        [InlineKeyboardButton("Оплата", callback_data="cat:Оплата")],
+        [InlineKeyboardButton("Другое", callback_data="cat:Другое")]
     ]
     return InlineKeyboardMarkup(buttons)
 
