@@ -57,7 +57,7 @@ CONTENT = {
         "Низкая скорость при использовании VPN": "Попробуйте обновить конфигурацию и выбрать другую скорость подключения.",
         "Не работает TikTok (iOS)": "Попробуйте другую страну подключения и убедитесь, что регион в AppStore изменён (не Россия).",
     },
-    "Реферальная/партнерская программа": {
+    "Реферальная и партнерская программы": {
         "Не пришли деньги за реферала": "Убедитесь, что приглашаете людей по реферальной, а не партнерской ссылке. Если все верно, то реферал не до конца прошел регитсрацию. Для нее нужно подписаться на канал и выбрать язык в боте",
         "Куда можно выводить деньги по партнерской программе?": "Вывод средств осуществляется только на карты Российских банков",
     },
@@ -118,7 +118,7 @@ def mk_ticket_id(user_id: int) -> str:
     return f"{user_id}_{int(datetime.now(timezone.utc).timestamp())}"
 
 PRIO_ICONS = {"high":"🔴","medium":"🟡","low":"🟢"}
-CATEGORIES = {"Обходы":"Обходы", "VPN":"VPN", "Оплата":"Оплата", "Программа":"Реферальная/партнерская программа", "Другое":"Другое"}
+CATEGORIES = {"Обходы":"Обходы", "VPN":"VPN", "Оплата":"Оплата", "Программа":"Реферальная и партнерская программы", "Другое":"Другое"}
 
 # Keyboards (без изменений)
 def client_priority_kb() -> InlineKeyboardMarkup:
@@ -133,7 +133,7 @@ def client_category_kb() -> InlineKeyboardMarkup:
         [InlineKeyboardButton("Обходы", callback_data="cat:Обходы")],
         [InlineKeyboardButton("VPN", callback_data="cat:VPN")],
         [InlineKeyboardButton("Оплата", callback_data="cat:Оплата")],
-        [InlineKeyboardButton("Реферальная/партнерская программа", callback_data="cat:Программа")],
+        [InlineKeyboardButton("Реферальная и партнерская программы", callback_data="cat:Программа")],
         [InlineKeyboardButton("Другое", callback_data="cat:Другое")]
     ]
     return InlineKeyboardMarkup(buttons)
