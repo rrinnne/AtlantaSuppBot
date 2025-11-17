@@ -44,56 +44,46 @@ TICKETS: Dict[str, Dict[str, Any]] = STATE.get("tickets", {})
 STATS: Dict[str, Any] = STATE.get("stats", {})
 
 # ---------------------------------FAQ structure---------------------------------------
-FAQ = {
-    "Обходы": [
-        ("Не работают «Моб.операторы»", "Моб.операторы, к сожалению, заблокировали в большинстве регионов. Попробуйте использовать другие обходы - https://t.me/AtlantaVPNvideo/9"),
-        ("Не работают «Белые списки»", "Попробуйте обновить конфигурацию, заново добавить ключ в приложение или переустановить Happ..."),
-        ("Почему обходы не работают", "Здравствуйте! У Вас закончились гигабайты для обхода..."),
-        ("Можно купить обходы отдельно от основной подписки?", "Обходы – это доп.подписка к основной, их нельзя приобрести отдельно"),
-        ("Нет моего вопроса", "create_ticket")  # спец. маркер для создания тикета
-    ],
-    "VPN": [
-        ("Не работает VPN (Happ)", "Попробуйте обновить конфигурацию и выбрать другую страну подключения."),
-        ("Не работает VPN (v2raytun)", "Попробуйте скачать приложение Happ и использовать его. Ссылка..."),
-        ("Низкая скорость при использовании VPN", "Попробуйте обновить конфигурацию и выбрать другую скорость подключения."),
-        ("Не работает TikTok (iOS)", "Попробуйте другую страну подключения и убедитесь, что регион в AppStore изменён."),
-        ("Нет моего вопроса", "create_ticket")
-    ],
-    "Оплата": [
-        ("Не хочу больше пользоваться подпиской, верните деньги", "Мы возвращаем деньги, если не работает VPN..."),
-        ("Как отключить автоплатеж?", "Удалите метод оплаты в боте: Мой профиль -> Мой баланс -> Методы оплаты -> Удалить."),
-        ("Нет моего вопроса", "create_ticket")
-    ],
-    "Партнерская и реферальная программы": [
-        ("Пригласил друзей, а бонус не начислился (партнерская ссылка)", "Бонусы начисляются звездами на кошелек в боте."),
-        ("Пригласил друзей, а бонус не начислился (реферальная ссылка)", "Нужно чтобы реферал подписался на канал и выбрал язык."),
-        ("Нет моего вопроса", "create_ticket")
-    ],
-    "Другое": [
-        ("Общий вопрос 1", "Ответ 1"),
-        ("Общий вопрос 2", "Ответ 2"),
-        ("Нет моего вопроса", "create_ticket")
-    ]
+CONTENT = {
+    "🌐 Обходы": {
+        "Не работают «Моб.операторы»": "Моб.операторы, к сожалению, заблокированы в большинстве регионов. Попробуйте использовать другие обходы - https://t.me/AtlantaVPNvideo/9",
+        "Не работают «Белые списки»": "Попробуйте обновить конфигурацию, заново добавить ключ в приложение или переустановить Happ...",
+        "Почему обходы не работают": "Здравствуйте! У Вас закончились гигабайты для обхода...",
+        "Можно купить обходы отдельно": "Обходы — это доп. подписка к основной. Отдельно купить нельзя.",
+    },
+    "VPN": {
+        "Не работает VPN (Happ)": "Попробуйте обновить конфигурацию и выбрать другую страну подключения.",
+        "Не работает VPN (v2raytun)": "Попробуйте скачать приложение Happ и использовать его. Ссылка...",
+        "Низкая скорость при использовании VPN": "Попробуйте обновить конфигурацию и выбрать другую скорость подключения.",
+        "Не работает TikTok (iOS)": "Попробуйте другую страну подключения и убедитесь, что регион в AppStore изменён.",
+    },
+    "Оплата": {
+        "Не хочу больше пользоваться": "Мы возвращаем деньги, если не работает VPN...",
+        "Как отключить автоплатеж?": "Удалите метод оплаты в боте: Мой профиль -> Мой баланс -> Методы оплаты -> Удалить.",
+    },
+    "Другое": {
+        "Общий вопрос 1": "Ответ 1",
+        "Общий вопрос 2": "Ответ 2"
+    }
 }
 
+
 def faq_categories_kb():
-    try:
-        buttons = [[InlineKeyboardButton(cat, callback_data=f"faq_cat:{cat}")] for cat in FAQ.keys() if FAQ[cat]]
-        if not buttons:
-            buttons = [[InlineKeyboardButton("Общее", callback_data="faq_cat:Другое")]]
-        return InlineKeyboardMarkup(buttons)
-    except Exception as e:
-        log.error("Ошибка faq_categories_kb: %s", e)
-        return InlineKeyboardMarkup([[InlineKeyboardButton("Общее", callback_data="faq_cat:Другое")]])
+    buttons = [[InlineKeyboardButton(cat, callback_data=f"faq_cat:{cat}")] for cat in CONTENT.keys()]
+    return InlineKeyboardMarkup(buttons)
 
 
 def faq_questions_kb(category: str):
-    buttons = [[InlineKeyboardButton(q[0], callback_data=f"faq_q:{category}:{i}")] for i,q in enumerate(FAQ[category])]
+    if category not in CONTENT:
+        category = "Другое"
+    buttons = [[InlineKeyboardButton(q, callback_data=f"faq_q:{category}:{i}")]
+               for i, q in enumerate(CONTENT[category].keys())]
     buttons.append([InlineKeyboardButton("⬅️ Назад", callback_data="faq_back")])
     return InlineKeyboardMarkup(buttons)
 
 def faq_answer_kb(category: str):
     return InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Назад", callback_data=f"faq_cat:{category}")]])
+
 
 #----------------------- Helpers----------------------------------
 def now_utc() -> datetime:
@@ -389,7 +379,10 @@ async def faq_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data.startswith("faq_q:"):
         _, category, idx = data.split(":")
         idx = int(idx)
-        question, answer = FAQ[category][idx]
+        category_dict = CONTENT.get(category, CONTENT["Другое"])
+        questions_list = list(category_dict.items())
+        question, answer = questions_list[idx]
+
         if answer == "create_ticket":
             # Запускаем процесс создания тикета только через кнопку
             context.user_data["creating_ticket"] = {"user_id": q.from_user.id, "username": q.from_user.username or q.from_user.first_name}
