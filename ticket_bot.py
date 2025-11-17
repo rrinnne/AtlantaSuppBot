@@ -77,8 +77,15 @@ FAQ = {
 }
 
 def faq_categories_kb():
-    buttons = [[InlineKeyboardButton(cat, callback_data=f"faq_cat:{cat}")] for cat in FAQ.keys()]
-    return InlineKeyboardMarkup(buttons)
+    try:
+        buttons = [[InlineKeyboardButton(cat, callback_data=f"faq_cat:{cat}")] for cat in FAQ.keys() if FAQ[cat]]
+        if not buttons:
+            buttons = [[InlineKeyboardButton("Общее", callback_data="faq_cat:Другое")]]
+        return InlineKeyboardMarkup(buttons)
+    except Exception as e:
+        log.error("Ошибка faq_categories_kb: %s", e)
+        return InlineKeyboardMarkup([[InlineKeyboardButton("Общее", callback_data="faq_cat:Другое")]])
+
 
 def faq_questions_kb(category: str):
     buttons = [[InlineKeyboardButton(q[0], callback_data=f"faq_q:{category}:{i}")] for i,q in enumerate(FAQ[category])]
