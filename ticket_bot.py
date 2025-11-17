@@ -17,7 +17,7 @@ with open("config.json", "r", encoding="utf-8") as f:
     CFG = json.load(f)
 TOKEN = CFG["TELEGRAM_TOKEN"]
 CHANNEL_ID = int(CFG["CHANNEL_ID"])
-BRAND = CFG.get("BRAND", "Divine VPN")
+BRAND = CFG.get("BRAND", "Atlanta VPN")
 AUTO_CLOSE_HOURS = int(CFG.get("AUTO_CLOSE_HOURS", 3))
 REMINDER_MINUTES = int(CFG.get("REMINDER_MINUTES", 15))
 STATE_FILE = CFG.get("STATE_FILE", "state.json")
@@ -43,7 +43,52 @@ STATE = load_state()
 TICKETS: Dict[str, Dict[str, Any]] = STATE.get("tickets", {})
 STATS: Dict[str, Any] = STATE.get("stats", {})
 
-# Helpers
+# ---------------------------------FAQ structure---------------------------------------
+FAQ = {
+    "Обходы": [
+        ("Не работают «Моб.операторы»", "Моб.операторы, к сожалению, заблокировали в большинстве регионов. Попробуйте использовать другие обходы - https://t.me/AtlantaVPNvideo/9"),
+        ("Не работают «Белые списки»", "Попробуйте обновить конфигурацию, заново добавить ключ в приложение или переустановить Happ..."),
+        ("Почему обходы не работают", "Здравствуйте! У Вас закончились гигабайты для обхода..."),
+        ("Можно купить обходы отдельно от основной подписки?", "Обходы – это доп.подписка к основной, их нельзя приобрести отдельно"),
+        ("Нет моего вопроса", "create_ticket")  # спец. маркер для создания тикета
+    ],
+    "VPN": [
+        ("Не работает VPN (Happ)", "Попробуйте обновить конфигурацию и выбрать другую страну подключения."),
+        ("Не работает VPN (v2raytun)", "Попробуйте скачать приложение Happ и использовать его. Ссылка..."),
+        ("Низкая скорость при использовании VPN", "Попробуйте обновить конфигурацию и выбрать другую скорость подключения."),
+        ("Не работает TikTok (iOS)", "Попробуйте другую страну подключения и убедитесь, что регион в AppStore изменён."),
+        ("Нет моего вопроса", "create_ticket")
+    ],
+    "Оплата": [
+        ("Не хочу больше пользоваться подпиской, верните деньги", "Мы возвращаем деньги, если не работает VPN..."),
+        ("Как отключить автоплатеж?", "Удалите метод оплаты в боте: Мой профиль -> Мой баланс -> Методы оплаты -> Удалить."),
+        ("Нет моего вопроса", "create_ticket")
+    ],
+    "Партнерская и реферальная программы": [
+        ("Пригласил друзей, а бонус не начислился (партнерская ссылка)", "Бонусы начисляются звездами на кошелек в боте."),
+        ("Пригласил друзей, а бонус не начислился (реферальная ссылка)", "Нужно чтобы реферал подписался на канал и выбрал язык."),
+        ("Нет моего вопроса", "create_ticket")
+    ],
+    "Другое": [
+        ("Общий вопрос 1", "Ответ 1"),
+        ("Общий вопрос 2", "Ответ 2"),
+        ("Нет моего вопроса", "create_ticket")
+    ]
+}
+
+def faq_categories_kb():
+    buttons = [[InlineKeyboardButton(cat, callback_data=f"faq_cat:{cat}")] for cat in FAQ.keys()]
+    return InlineKeyboardMarkup(buttons)
+
+def faq_questions_kb(category: str):
+    buttons = [[InlineKeyboardButton(q[0], callback_data=f"faq_q:{category}:{i}")] for i,q in enumerate(FAQ[category])]
+    buttons.append([InlineKeyboardButton("⬅️ Назад", callback_data="faq_back")])
+    return InlineKeyboardMarkup(buttons)
+
+def faq_answer_kb(category: str):
+    return InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Назад", callback_data=f"faq_cat:{category}")]])
+
+#----------------------- Helpers----------------------------------
 def now_utc() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -104,9 +149,10 @@ async def ensure_reviews_thread(context: ContextTypes.DEFAULT_TYPE):
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.type != "private":
         return
-    user = update.effective_user
-    context.user_data["creating_ticket"] = {"user_id": user.id, "username": user.username or user.first_name}
-    await update.message.reply_text(f"👋 Здравствуйте! Это техническая поддержка {BRAND}. У Вас проблема? Выберите срочность:", reply_markup=client_priority_kb())
+    await update.message.reply_text(
+        "👋 Здравствуйте! Выберите категорию вопроса:",
+        reply_markup=faq_categories_kb()
+    )
 
 # client callback for priority/category (без изменений)
 async def client_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -149,7 +195,7 @@ async def client_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ticket["thread_id"] = thread_id
             STATE["tickets"] = TICKETS
             save_state(STATE)
-            text = (f"📩 Тикет {ticket_id}\nКлиент: @{ticket['username'] or ticket['user_id']}\n"
+            text = (f"📩 Тикет {ticket_id}\n💻 ID клиента: {ticket['user_id']}\nКлиент: @{ticket['username'] or ticket['user_id']}\n"
                     f"Приоритет: {PRIO_ICONS[ticket['priority']]}\nКатегория: {CATEGORIES.get(ticket['category'])}\n\n"
                     "Менеджеры, нажмите «Взять тикет» чтобы подключиться.")
             await context.bot.send_message(chat_id=CHANNEL_ID, message_thread_id=thread_id, text=text, reply_markup=manager_thread_kb(ticket_id, None))
@@ -186,7 +232,7 @@ async def client_dm(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     user = update.effective_user
     msg: Message = update.message
-    # --- NEW: обработка текстового отзыва после оценки ---
+    # --- обработка текстового отзыва после оценки ---
     if context.user_data.get("await_review"):
         ticket_id = context.user_data["await_review"]
         reviews_thread = await ensure_reviews_thread(context)
@@ -202,9 +248,8 @@ async def client_dm(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         context.user_data.pop("await_review", None)
 
-        await msg.reply_text("Спасибо! Ваш отзыв отправлен 💛")
+        await msg.reply_text("Спасибо! Ваш отзыв отправлен 💙")
         return
-    # --- END NEW ---
 
     # find ticket
     ticket = None
@@ -261,7 +306,7 @@ async def manager_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         save_state(STATE)
         await q.edit_message_text(f"✅ Тикет {ticket_id} взят {q.from_user.first_name}", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔒 Закрыть", callback_data=f"close:{ticket_id}"), InlineKeyboardButton("🔄 Передать", callback_data=f"transfer:{ticket_id}")]]))
         try:
-            await context.bot.send_message(chat_id=user_id, text=f"✅ Менеджер {q.from_user.first_name} подключился к вашему тикету.")
+            await context.bot.send_message(chat_id=user_id, text=f"✅ Менеджер подключился к вашему тикету.")
         except Exception as e:
             log.warning("Notify client on take failed: %s", e)
         await ensure_logs_thread(context, f"Взят тикет {ticket_id} менеджером {q.from_user.first_name}")
@@ -311,6 +356,46 @@ async def manager_thread_msg(update: Update, context: ContextTypes.DEFAULT_TYPE)
     # NEW: лог для менеджера (опционально, можно убрать если не нужно)
     await ensure_logs_thread(context, f"Сообщение от менеджера в тикет {ticket['ticket_id']}: {log_text}")
 
+async def faq_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    await q.answer()
+    data = q.data or ""
+
+    # Назад из вопросов в категории
+    if data == "faq_back":
+        await q.edit_message_text(
+            "👆 Выберите категорию вопроса:",
+            reply_markup=faq_categories_kb()
+        )
+        return
+
+    # Выбор категории
+    if data.startswith("faq_cat:"):
+        category = data.split(":",1)[1]
+        await q.edit_message_text(
+            f"❓ Вопросы в категории {category}:",
+            reply_markup=faq_questions_kb(category)
+        )
+        return
+
+    # Выбор конкретного вопроса
+    if data.startswith("faq_q:"):
+        _, category, idx = data.split(":")
+        idx = int(idx)
+        question, answer = FAQ[category][idx]
+        if answer == "create_ticket":
+            # Запускаем процесс создания тикета только через кнопку
+            context.user_data["creating_ticket"] = {"user_id": q.from_user.id, "username": q.from_user.username or q.from_user.first_name}
+            await q.edit_message_text(
+                "❗ Вы не нашли ответ? Создадим тикет для оператора. Выберите срочность:",
+                reply_markup=client_priority_kb()
+            )
+        else:
+            await q.edit_message_text(
+                f"❓ {question}\n\n💡 {answer}",
+                reply_markup=faq_answer_kb(category)
+            )
+
 # rating handler (без изменений)
 async def rating_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
@@ -328,10 +413,8 @@ async def rating_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # благодарность
     await q.edit_message_text(f"Спасибо! Вы оценили поддержку на {score} ⭐️")
-
     # включаем режим ожидания отзыва
     context.user_data["await_review"] = ticket_id
-
     # просим оставить текст
     await q.message.reply_text("✍️ Пожалуйста, напишите текстовый отзыв о работе поддержки.")
 
@@ -403,6 +486,9 @@ def main():
 
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CallbackQueryHandler(client_cb, pattern=r"^(prio|cat):"))
+
+    app.add_handler(CallbackQueryHandler(faq_cb, pattern=r"^faq_"))
+
     # MODIFIED: разделил обработчики для текста и фото в привате
     app.add_handler(MessageHandler(filters.ChatType.PRIVATE & filters.TEXT & ~filters.COMMAND & ~filters.PHOTO, client_dm))  # MODIFIED: добавил ~filters.PHOTO
     app.add_handler(MessageHandler(filters.ChatType.PRIVATE & filters.PHOTO, client_dm))  # NEW: отдельный для фото (но функция client_dm теперь универсальная)
