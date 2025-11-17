@@ -485,9 +485,8 @@ def main():
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", cmd_start))
+    app.add_handler(CallbackQueryHandler(faq_cb, pattern=r"^faq_(cat|back|q)"))
     app.add_handler(CallbackQueryHandler(client_cb, pattern=r"^(prio|cat):"))
-
-    app.add_handler(CallbackQueryHandler(faq_cb, pattern=r"^faq_"))
 
     # MODIFIED: разделил обработчики для текста и фото в привате
     app.add_handler(MessageHandler(filters.ChatType.PRIVATE & filters.TEXT & ~filters.COMMAND & ~filters.PHOTO, client_dm))  # MODIFIED: добавил ~filters.PHOTO
