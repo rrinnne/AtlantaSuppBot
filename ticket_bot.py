@@ -74,21 +74,40 @@ CONTENT = {
 
 
 def faq_categories_kb():
-    buttons = [[InlineKeyboardButton(cat, callback_data=f"faq_cat:{cat}")] for cat in CONTENT.keys()]
+    buttons = [
+        [InlineKeyboardButton(cat, callback_data=f"faq_cat:{cat}")]
+        for cat in CONTENT.keys()
+    ]
     return InlineKeyboardMarkup(buttons)
-
 
 def faq_questions_kb(category: str):
     if category not in CONTENT:
         category = "Другое"
-    buttons = [[InlineKeyboardButton(q, callback_data=f"faq_q:{category}:{i}")]
-               for i, q in enumerate(CONTENT[category].keys())]
-    buttons.append([InlineKeyboardButton("❗ Нет моего вопроса", callback_data=f"faq_q:{category}:ticket")])
-    buttons.append([InlineKeyboardButton("⬅️ Назад", callback_data="faq_back")])
+
+    # Каждую кнопку делаем отдельной строкой
+    buttons = [
+        [InlineKeyboardButton(q, callback_data=f"faq_q:{category}:{i}")]
+        for i, q in enumerate(CONTENT[category].keys())
+    ]
+
+    # Отдельной строкой — кнопка "Нет моего вопроса"
+    buttons.append([
+        InlineKeyboardButton("❗ Нет моего вопроса", callback_data=f"faq_q:{category}:ticket")
+    ])
+
+    # Отдельной строкой — кнопка "Назад"
+    buttons.append([
+        InlineKeyboardButton("⬅️ Назад", callback_data="faq_back")
+    ])
+
     return InlineKeyboardMarkup(buttons)
 
+
 def faq_answer_kb(category: str):
-    return InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Назад", callback_data=f"faq_cat:{category}")]])
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("⬅️ Назад", callback_data=f"faq_cat:{category}")]
+    ])
+
 
 
 #----------------------- Helpers----------------------------------
@@ -111,13 +130,14 @@ def client_priority_kb() -> InlineKeyboardMarkup:
 
 def client_category_kb() -> InlineKeyboardMarkup:
     buttons = [
-        InlineKeyboardButton(CATEGORIES["Обходы"], callback_data="cat:Обходы"),
-        InlineKeyboardButton(CATEGORIES["VPN"], callback_data="cat:VPN"),
-        InlineKeyboardButton(CATEGORIES["Оплата"], callback_data="cat:Оплата"),
-        InlineKeyboardButton(CATEGORIES["Реферальная/партнерская программа"], callback_data="cat:Реферальная/партнерская программа"),
-        InlineKeyboardButton(CATEGORIES["Другое"], callback_data="cat:Другое")
+        [InlineKeyboardButton("Обходы", callback_data="cat:Обходы")],
+        [InlineKeyboardButton("VPN", callback_data="cat:VPN")],
+        [InlineKeyboardButton("Оплата", callback_data="cat:Оплата")],
+        [InlineKeyboardButton("Реферальная/партнерская программа", callback_data="cat:Реферальная/партнерская программа")],
+        [InlineKeyboardButton("Другое", callback_data="cat:Другое")]
     ]
     return InlineKeyboardMarkup(buttons)
+
 
 
 def manager_thread_kb(ticket_id: str, taken_by: Optional[int]) -> InlineKeyboardMarkup:
@@ -517,7 +537,7 @@ def main():
     app.job_queue.run_repeating(job_checker, interval=60, first=30)
 
     log.info(f"🚀 {BRAND} Ticket Bot PRO started. Channel {CHANNEL_ID}")
-    app.run_polling(allowed_updates=Update.ALL_TYPES)
+    app.run_polling()
 
 if __name__ == "__main__":
     main()
