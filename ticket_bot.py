@@ -64,8 +64,8 @@ CONTENT = {
     "Другое": {
         "Сколько устройств можно подключить по одной подписке?": "Для каждого устройства нужна индивидуальная подписка",
         "Ошибка TLS рукопожатия": "Попробуйте, пожалуйста, обновить конфигурацию и использовать другую страну подключения",
-        "Не пришли деньги за реферала": "Убедитесь, что приглашаете людей по реферальной, а не партнерской ссылке. Если все верно, то реферал не до конца прошел регитсрацию. Для нее нужно подписаться на канал и выбрать язык в боте",
-        "Куда можно выводить деньги по партнерской программе?": "Вывод средств осуществляется только на карты Российских банков",
+        "Не пришли деньги за реферала": "Убедитесь, что приглашаете людей по реферальной, а не партнерской ссылке. Если все верно, то реферал не до конца прошел регистрацию. Для нее нужно подписаться на канал и выбрать язык в боте",
+        "Куда можно выводить деньги по партнерской программе?": "Вывод средств осуществляется только только по СБП на номер телефона в Российские банки. В приоритете ПСБ банк.",
     },
 }
 
@@ -385,7 +385,7 @@ async def faq_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Назад из вопросов в категории
     if data == "faq_back":
         await q.edit_message_text(
-            "👆 Выберите категорию вопроса:",
+            "👇 Выберите категорию вопроса:",
             reply_markup=faq_categories_kb()
         )
         return
@@ -421,8 +421,9 @@ async def faq_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         question, answer = questions_list[idx]
 
         await q.edit_message_text(
-            f"❓ {question}\n\n💡 {answer}",
-            reply_markup=faq_answer_kb(category)
+            f"❓ <b>{question}</b>\n\n💡 {answer}",
+            reply_markup=faq_answer_kb(category),
+            parse_mode="HTML"
         )
 
 # rating handler (без изменений)
@@ -445,7 +446,7 @@ async def rating_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # включаем режим ожидания отзыва
     context.user_data["await_review"] = ticket_id
     # просим оставить текст
-    await q.message.reply_text("✍️ Пожалуйста, напишите текстовый отзыв о работе поддержки.")
+    await q.message.reply_text("✍ Пожалуйста, напишите текстовый отзыв о работе поддержки.")
 
     await ensure_logs_thread(context, f"Оценка тикета {ticket_id}: {score}")
 
@@ -463,7 +464,7 @@ async def do_close_ticket(context: ContextTypes.DEFAULT_TYPE, ticket_id: str, re
     except Exception as e:
         log.error("Failed to notify thread: %s", e)
     try:
-        await context.bot.send_message(chat_id=t["user_id"], text=f"✅ Ваш тикет закрыт. {reason}", reply_markup=rating_kb(ticket_id))
+        await context.bot.send_message(chat_id=t["user_id"], text=f"✅ Ваш тикет закрыт. Оцените работу поддержки")
     except Exception as e:
         log.error("Failed to notify client: %s", e)
     # delete forum topic
