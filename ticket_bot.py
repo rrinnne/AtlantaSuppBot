@@ -81,18 +81,14 @@ def faq_questions_kb(category: str):
     if category not in CONTENT:
         category = "Другое"
 
-    # Каждую кнопку делаем отдельной строкой
     buttons = [
         [InlineKeyboardButton(q, callback_data=f"faq_q:{category}:{i}")]
         for i, q in enumerate(CONTENT[category].keys())
     ]
-
-    # Отдельной строкой — кнопка "Нет моего вопроса"
     buttons.append([
         InlineKeyboardButton("❗ Нет моего вопроса", callback_data=f"faq_q:{category}:ticket")
     ])
 
-    # Отдельной строкой — кнопка "Назад"
     buttons.append([
         InlineKeyboardButton("⬅️ Назад", callback_data="faq_back")
     ])
@@ -464,7 +460,7 @@ async def do_close_ticket(context: ContextTypes.DEFAULT_TYPE, ticket_id: str, re
     except Exception as e:
         log.error("Failed to notify thread: %s", e)
     try:
-        await context.bot.send_message(chat_id=t["user_id"], text=f"✅ Ваш тикет закрыт. Оцените работу поддержки")
+        await context.bot.send_message(chat_id=t["user_id"], text=f"✅ Ваш тикет закрыт. Оцените работу поддержки", reply_markup=rating_kb(ticket_id))
     except Exception as e:
         log.error("Failed to notify client: %s", e)
     # delete forum topic
