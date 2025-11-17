@@ -1,0 +1,380 @@
+
+import json, logging, os
+from datetime import datetime, timezone, timedelta
+from typing import Dict, Any, Optional
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, Message, InputMediaPhoto  # NEW: добавлен InputMediaPhoto (на всякий случай, если нужно)
+from telegram.ext import (
+    ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler,
+    ContextTypes, filters
+)
+
+# Logging
+logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
+log = logging.getLogger("DivineVPN-TicketBot")
+
+# Load config
+with open("config.json", "r", encoding="utf-8") as f:
+    CFG = json.load(f)
+TOKEN = CFG["TELEGRAM_TOKEN"]
+CHANNEL_ID = int(CFG["CHANNEL_ID"])
+BRAND = CFG.get("BRAND", "Divine VPN")
+AUTO_CLOSE_HOURS = int(CFG.get("AUTO_CLOSE_HOURS", 3))
+REMINDER_MINUTES = int(CFG.get("REMINDER_MINUTES", 15))
+STATE_FILE = CFG.get("STATE_FILE", "state.json")
+
+# Persistence helpers
+def load_state() -> Dict[str, Any]:
+    if os.path.exists(STATE_FILE):
+        try:
+            with open(STATE_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            log.error("Failed to load state: %s", e)
+    return {"tickets": {}, "stats": {}}
+
+def save_state(state: Dict[str, Any]):
+    try:
+        with open(STATE_FILE, "w", encoding="utf-8") as f:
+            json.dump(state, f, ensure_ascii=False, indent=2, default=str)
+    except Exception as e:
+        log.error("Failed to save state: %s", e)
+
+STATE = load_state()
+TICKETS: Dict[str, Dict[str, Any]] = STATE.get("tickets", {})
+STATS: Dict[str, Any] = STATE.get("stats", {})
+
+# Helpers
+def now_utc() -> datetime:
+    return datetime.now(timezone.utc)
+
+def mk_ticket_id(user_id: int) -> str:
+    return f"{user_id}_{int(datetime.now(timezone.utc).timestamp())}"
+
+PRIO_ICONS = {"high":"🔴","medium":"🟡","low":"🟢"}
+CATEGORIES = {"payment":"💳 Оплата", "connect":"🌐 Подключение", "settings":"⚙️ Настройки"}
+
+# Keyboards (без изменений)
+def client_priority_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton("🔴 Срочно", callback_data="prio:high"),
+        InlineKeyboardButton("🟡 Средне", callback_data="prio:medium"),
+        InlineKeyboardButton("🟢 Не срочно", callback_data="prio:low")
+    ]])
+
+def client_category_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton("💳 Оплата", callback_data="cat:payment"),
+        InlineKeyboardButton("🌐 Подключение", callback_data="cat:connect"),
+        InlineKeyboardButton("⚙️ Настройки", callback_data="cat:settings")
+    ]])
+
+def manager_thread_kb(ticket_id: str, taken_by: Optional[int]) -> InlineKeyboardMarkup:
+    buttons = []
+    if not taken_by:
+        buttons.append(InlineKeyboardButton("✅ Взять тикет", callback_data=f"take:{ticket_id}"))
+    else:
+        buttons.append(InlineKeyboardButton("👤 Взял", callback_data="noop"))
+    buttons.append(InlineKeyboardButton("🔄 Передать", callback_data=f"transfer:{ticket_id}"))
+    buttons.append(InlineKeyboardButton("🔒 Закрыть", callback_data=f"close:{ticket_id}"))
+    return InlineKeyboardMarkup([buttons])
+
+def rating_kb(ticket_id: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton("⭐️", callback_data=f"rate:{ticket_id}:1"),
+        InlineKeyboardButton("⭐️⭐️", callback_data=f"rate:{ticket_id}:2"),
+        InlineKeyboardButton("⭐️⭐️⭐️", callback_data=f"rate:{ticket_id}:3"),
+        InlineKeyboardButton("⭐️⭐️⭐️⭐️", callback_data=f"rate:{ticket_id}:4"),
+        InlineKeyboardButton("⭐️⭐️⭐️⭐️⭐️", callback_data=f"rate:{ticket_id}:5")
+    ]])
+
+# Flow: /start -> priority -> category -> create thread (без изменений)
+async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.type != "private":
+        return
+    user = update.effective_user
+    context.user_data["creating_ticket"] = {"user_id": user.id, "username": user.username or user.first_name}
+    await update.message.reply_text(f"👋 Здравствуйте! Это техническая поддержка {BRAND}. У Вас проблема? Выберите срочность:", reply_markup=client_priority_kb())
+
+# client callback for priority/category (без изменений)
+async def client_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    await q.answer()
+    data = q.data or ""
+    if not context.user_data.get("creating_ticket"):
+        await q.edit_message_text("❗ Начните /start чтобы создать тикет.")
+        return
+    ct = context.user_data["creating_ticket"]
+    if data.startswith("prio:"):
+        ct["priority"] = data.split(":",1)[1]
+        await q.edit_message_text(f"Выбран приоритет: {PRIO_ICONS.get(ct['priority'])}\nВыберите категорию:", reply_markup=client_category_kb())
+        return
+    if data.startswith("cat:"):
+        ct["category"] = data.split(":",1)[1]
+        user_id = ct["user_id"]
+        ticket_id = mk_ticket_id(user_id)
+        ticket = {
+            "ticket_id": ticket_id,
+            "user_id": user_id,
+            "username": ct.get("username"),
+            "priority": ct.get("priority","low"),
+            "category": ct.get("category","connect"),
+            "created_at": now_utc().isoformat(),
+            "last_client_msg_at": now_utc().isoformat(),
+            "status": "open",
+            "thread_id": None,
+            "taken_by": None,
+            "rating": None,
+            "messages": []
+        }
+        TICKETS[ticket_id] = ticket
+        STATE["tickets"] = TICKETS
+        save_state(STATE)
+        title = f"{PRIO_ICONS[ticket['priority']]} {CATEGORIES.get(ticket['category'])} — {ticket['username'] or ticket['user_id']}"
+        try:
+            topic = await context.bot.create_forum_topic(chat_id=CHANNEL_ID, name=title)
+            thread_id = topic.message_thread_id
+            ticket["thread_id"] = thread_id
+            STATE["tickets"] = TICKETS
+            save_state(STATE)
+            text = (f"📩 Тикет {ticket_id}\nКлиент: @{ticket['username'] or ticket['user_id']}\n"
+                    f"Приоритет: {PRIO_ICONS[ticket['priority']]}\nКатегория: {CATEGORIES.get(ticket['category'])}\n\n"
+                    "Менеджеры, нажмите «Взять тикет» чтобы подключиться.")
+            await context.bot.send_message(chat_id=CHANNEL_ID, message_thread_id=thread_id, text=text, reply_markup=manager_thread_kb(ticket_id, None))
+            # create logs thread if missing and log creation
+            await ensure_logs_thread(context, f"Создан тикет {ticket_id} (пользователь {ticket['username'] or ticket['user_id']})")
+        except Exception as e:
+            log.error("create_forum_topic failed: %s", e)
+            await q.edit_message_text("Ошибка при создании ветки форума: " + str(e))
+            return
+        await q.edit_message_text("✅ Тикет создан. Опишите проблему — постараемся оперативно помочь.")
+        context.user_data.pop("creating_ticket", None)
+
+# Ensure logs thread exists (named "📊 Логи") (без изменений)
+async def ensure_logs_thread(context: ContextTypes.DEFAULT_TYPE, text: str):
+    logs_id = STATE.get("logs_thread_id")
+    if not logs_id:
+        try:
+            topic = await context.bot.create_forum_topic(chat_id=CHANNEL_ID, name="📊 Логи")
+            STATE["logs_thread_id"] = topic.message_thread_id
+            save_state(STATE)
+            logs_id = topic.message_thread_id
+        except Exception as e:
+            log.error("Failed to create logs thread: %s", e)
+            logs_id = None
+    if logs_id:
+        try:
+            await context.bot.send_message(chat_id=CHANNEL_ID, message_thread_id=logs_id, text=text)
+        except Exception as e:
+            log.error("Failed to send log message: %s", e)
+
+# MODIFIED: client dms -> forward to thread and update last_client_msg_at (теперь с поддержкой фото)
+async def client_dm(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.type != "private":
+        return
+    user = update.effective_user
+    msg: Message = update.message
+    # find ticket
+    ticket = None
+    for t in TICKETS.values():
+        if t["user_id"] == user.id and t["status"] in ("open","in_progress"):
+            ticket = t
+            break
+    if not ticket:
+        await msg.reply_text("У вас нет активного тикета. Нажмите /start чтобы создать.")
+        return
+    ticket["last_client_msg_at"] = now_utc().isoformat()
+
+    # NEW: обработка фото или текста
+    if msg.photo:  # NEW: если фото
+        photo = msg.photo[-1]  # берём наилучшее качество
+        file_id = photo.file_id
+        caption = msg.caption or ""  # подпись к фото
+        ticket["messages"].append({"from": "client", "type": "photo", "file_id": file_id, "caption": caption, "at": now_utc().isoformat()})
+        log_text = f"фото (подпись: '{caption}') " if caption else "фото "
+        try:
+            await context.bot.send_photo(chat_id=CHANNEL_ID, message_thread_id=ticket["thread_id"], photo=file_id, caption=f"👤 Клиент: {caption}" if caption else "👤 Клиент:")
+        except Exception as e:
+            log.error("Failed to post client photo to thread: %s", e)
+    else:  # текст (оригинальный код)
+        ticket["messages"].append({"from": "client", "type": "text", "text": msg.text, "at": now_utc().isoformat()})
+        log_text = f"сообщение: '{msg.text}' "
+        try:
+            await context.bot.send_message(chat_id=CHANNEL_ID, message_thread_id=ticket["thread_id"], text=f"👤 Клиент: {msg.text}")
+        except Exception as e:
+            log.error("Failed to post client msg to thread: %s", e)
+
+    save_state(STATE)
+    await ensure_logs_thread(context, f"Сообщение от клиента {ticket['user_id']}: {log_text}")
+
+# manager callbacks (take, close, transfer) (без изменений)
+async def manager_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    await q.answer()
+    data = q.data or ""
+    if ":" not in data:
+        return
+    action, ticket_id = data.split(":",1)
+    ticket = TICKETS.get(ticket_id)
+    if not ticket:
+        await q.edit_message_text("Тикет не найден.")
+        return
+    user_id = ticket["user_id"]
+    if action == "take":
+        if ticket["taken_by"]:
+            await q.edit_message_text("Тикет уже взят.")
+            return
+        ticket["taken_by"] = q.from_user.id
+        ticket["status"] = "in_progress"
+        save_state(STATE)
+        await q.edit_message_text(f"✅ Тикет {ticket_id} взят {q.from_user.first_name}", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔒 Закрыть", callback_data=f"close:{ticket_id}"), InlineKeyboardButton("🔄 Передать", callback_data=f"transfer:{ticket_id}")]]))
+        try:
+            await context.bot.send_message(chat_id=user_id, text=f"✅ Менеджер {q.from_user.first_name} подключился к вашему тикету.")
+        except Exception as e:
+            log.warning("Notify client on take failed: %s", e)
+        await ensure_logs_thread(context, f"Взят тикет {ticket_id} менеджером {q.from_user.first_name}")
+    elif action == "close":
+        await do_close_ticket(context, ticket_id, reason=f"Закрыт менеджером {q.from_user.first_name}")
+        await ensure_logs_thread(context, f"Закрыт тикет {ticket_id} менеджером {q.from_user.first_name}")
+    elif action == "transfer":
+        ticket["taken_by"] = None
+        ticket["status"] = "open"
+        save_state(STATE)
+        await q.edit_message_text(f"🔄 Тикет {ticket_id} помечен как свободный.", reply_markup=manager_thread_kb(ticket_id, None))
+        await ensure_logs_thread(context, f"Тикет {ticket_id} передан менеджером {q.from_user.first_name}")
+
+# MODIFIED: manager messages inside thread -> forward to client (теперь с поддержкой фото)
+async def manager_thread_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    msg: Message = update.message
+    if not msg or msg.message_thread_id is None:
+        return
+    thread_id = msg.message_thread_id
+    ticket = None
+    for t in TICKETS.values():
+        if t.get("thread_id") == thread_id:
+            ticket = t
+            break
+    if not ticket or ticket.get("status") == "closed":
+        return
+    # forward manager message to client
+    if msg.photo:  # NEW: если фото
+        photo = msg.photo[-1]
+        file_id = photo.file_id
+        caption = msg.caption or ""
+        ticket["messages"].append({"from": "manager", "type": "photo", "file_id": file_id, "caption": caption, "at": now_utc().isoformat()})
+        log_text = f"фото (подпись: '{caption}') " if caption else "фото "
+        try:
+            await context.bot.send_photo(chat_id=ticket["user_id"], photo=file_id, caption=f"💬 Менеджер: {caption}" if caption else "💬 Менеджер:")
+        except Exception as e:
+            log.error("Failed to forward manager photo: %s", e)
+    else:  # текст (оригинальный код)
+        ticket["messages"].append({"from": "manager", "type": "text", "text": msg.text, "at": now_utc().isoformat()})
+        log_text = f"сообщение: '{msg.text}' "
+        try:
+            await context.bot.send_message(chat_id=ticket["user_id"], text=f"💬 Менеджер: {msg.text}")
+        except Exception as e:
+            log.error("Failed to forward manager msg: %s", e)
+
+    save_state(STATE)
+    # NEW: лог для менеджера (опционально, можно убрать если не нужно)
+    await ensure_logs_thread(context, f"Сообщение от менеджера в тикет {ticket['ticket_id']}: {log_text}")
+
+# rating handler (без изменений)
+async def rating_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    await q.answer()
+    parts = q.data.split(":")
+    if len(parts) != 3:
+        return
+    _, ticket_id, score = parts
+    t = TICKETS.get(ticket_id)
+    if not t:
+        return
+    t["rating"] = int(score)
+    save_state(STATE)
+    await q.edit_message_text(f"Спасибо! Вы оценили поддержку на {score} ⭐️")
+    await ensure_logs_thread(context, f"Оценка тикета {ticket_id}: {score}")
+
+# close ticket helper (без изменений)
+async def do_close_ticket(context: ContextTypes.DEFAULT_TYPE, ticket_id: str, reason: str):
+    t = TICKETS.get(ticket_id)
+    if not t or t.get("status") == "closed":
+        return
+    t["status"] = "closed"
+    save_state(STATE)
+    # notify thread & client
+    try:
+        if t.get("thread_id"):
+            await context.bot.send_message(chat_id=CHANNEL_ID, message_thread_id=t["thread_id"], text=f"🔒 Тикет закрыт: {reason}")
+    except Exception as e:
+        log.error("Failed to notify thread: %s", e)
+    try:
+        await context.bot.send_message(chat_id=t["user_id"], text=f"✅ Ваш тикет закрыт. {reason}", reply_markup=rating_kb(ticket_id))
+    except Exception as e:
+        log.error("Failed to notify client: %s", e)
+    # delete forum topic
+    if t.get("thread_id"):
+        try:
+            await context.bot.delete_forum_topic(chat_id=CHANNEL_ID, message_thread_id=t["thread_id"])
+        except Exception as e:
+            log.error("Failed to delete forum topic: %s", e)
+    await ensure_logs_thread(context, f"Закрыт тикет {ticket_id}: {reason}")
+
+# periodic job: reminder and auto-close (без изменений)
+async def job_checker(context: ContextTypes.DEFAULT_TYPE):
+    now = now_utc()
+    for ticket_id, t in list(TICKETS.items()):
+        if t.get("status") not in ("open","in_progress"):
+            continue
+        last = datetime.fromisoformat(t.get("last_client_msg_at"))
+        elapsed = now - last
+        hours = elapsed.total_seconds() / 3600.0
+        # reminder
+        if hours >= (AUTO_CLOSE_HOURS - REMINDER_MINUTES/60.0) and not t.get("reminder_sent"):
+            try:
+                await context.bot.send_message(chat_id=t["user_id"], text=f"⏳ Через {REMINDER_MINUTES} минут тикет будет автоматически закрыт из-за неактивности. Если нужно продолжить — отправьте сообщение.")
+                t["reminder_sent"] = True
+                save_state(STATE)
+                await ensure_logs_thread(context, f"Напоминание тикету {ticket_id} отправлено")
+            except Exception as e:
+                log.error("Failed to send reminder: %s", e)
+        # auto-close
+        if hours >= AUTO_CLOSE_HOURS:
+            await do_close_ticket(context, ticket_id, reason="Авто-закрытие: нет активности 3 часа")
+
+# simple stats (private command) (без изменений)
+async def stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.type != "private":
+        return
+    total = len(TICKETS)
+    open_cnt = sum(1 for t in TICKETS.values() if t.get("status") in ("open","in_progress"))
+    closed = sum(1 for t in TICKETS.values() if t.get("status")=="closed")
+    avg_rating = None
+    ratings = [t.get("rating") for t in TICKETS.values() if isinstance(t.get("rating"), int)]
+    if ratings:
+        avg_rating = sum(ratings)/len(ratings)
+    text = f"📊 Статистика (в памяти):\nВсего тикетов: {total}\nОткрытых: {open_cnt}\nЗакрытых: {closed}\nСредний рейтинг: {avg_rating or '—'}"
+    await update.message.reply_text(text)
+
+def main():
+    app = ApplicationBuilder().token(TOKEN).build()
+
+    app.add_handler(CommandHandler("start", cmd_start))
+    app.add_handler(CallbackQueryHandler(client_cb, pattern=r"^(prio|cat):"))
+    # MODIFIED: разделил обработчики для текста и фото в привате
+    app.add_handler(MessageHandler(filters.ChatType.PRIVATE & filters.TEXT & ~filters.COMMAND & ~filters.PHOTO, client_dm))  # MODIFIED: добавил ~filters.PHOTO
+    app.add_handler(MessageHandler(filters.ChatType.PRIVATE & filters.PHOTO, client_dm))  # NEW: отдельный для фото (но функция client_dm теперь универсальная)
+    app.add_handler(CallbackQueryHandler(manager_cb, pattern=r"^(take|close|transfer):"))
+    # MODIFIED: разделил обработчики для текста и фото в канале
+    app.add_handler(MessageHandler(filters.Chat(CHANNEL_ID) & filters.TEXT & ~filters.COMMAND & ~filters.PHOTO, manager_thread_msg))  # MODIFIED: добавил ~filters.PHOTO
+    app.add_handler(MessageHandler(filters.Chat(CHANNEL_ID) & filters.PHOTO & ~filters.COMMAND, manager_thread_msg))  # NEW: отдельный для фото
+    app.add_handler(CallbackQueryHandler(rating_cb, pattern=r"^rate:"))
+    app.add_handler(CommandHandler("stats", stats_cmd))
+
+    # job queue for reminders and auto-close
+    app.job_queue.run_repeating(job_checker, interval=60, first=30)
+
+    log.info(f"🚀 {BRAND} Ticket Bot PRO started. Channel {CHANNEL_ID}")
+    app.run_polling(allowed_updates=Update.ALL_TYPES)
+
+if __name__ == "__main__":
+    main()
