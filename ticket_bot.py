@@ -18,7 +18,7 @@ with open("config.json", "r", encoding="utf-8") as f:
 TOKEN = CFG["TELEGRAM_TOKEN"]
 CHANNEL_ID = int(CFG["CHANNEL_ID"])
 BRAND = CFG.get("BRAND", "Atlanta VPN")
-AUTO_CLOSE_HOURS = int(CFG.get("AUTO_CLOSE_HOURS", 3))
+AUTO_CLOSE_HOURS = int(CFG.get("AUTO_CLOSE_HOURS", 12))
 REMINDER_MINUTES = int(CFG.get("REMINDER_MINUTES", 15))
 STATE_FILE = CFG.get("STATE_FILE", "state.json")
 
@@ -142,11 +142,11 @@ def manager_thread_kb(ticket_id: str, taken_by: Optional[int]) -> InlineKeyboard
 
 def rating_kb(ticket_id: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([[
-        InlineKeyboardButton("⭐️", callback_data=f"rate:{ticket_id}:1"),
-        InlineKeyboardButton("⭐️⭐️", callback_data=f"rate:{ticket_id}:2"),
-        InlineKeyboardButton("⭐️⭐️⭐️", callback_data=f"rate:{ticket_id}:3"),
-        InlineKeyboardButton("⭐️⭐️⭐️⭐️", callback_data=f"rate:{ticket_id}:4"),
-        InlineKeyboardButton("⭐️⭐️⭐️⭐️⭐️", callback_data=f"rate:{ticket_id}:5")
+        InlineKeyboardButton("1⭐️", callback_data=f"rate:{ticket_id}:1"),
+        InlineKeyboardButton("2️⭐️", callback_data=f"rate:{ticket_id}:2"),
+        InlineKeyboardButton("3️⭐️", callback_data=f"rate:{ticket_id}:3"),
+        InlineKeyboardButton("4️⭐️", callback_data=f"rate:{ticket_id}:4"),
+        InlineKeyboardButton("5️⭐️", callback_data=f"rate:{ticket_id}:5")
     ]])
 
 async def ensure_reviews_thread(context: ContextTypes.DEFAULT_TYPE):
@@ -222,7 +222,7 @@ async def client_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
             log.error("create_forum_topic failed: %s", e)
             await q.edit_message_text("Ошибка при создании ветки форума: " + str(e))
             return
-        await q.edit_message_text("✅ Тикет создан. Опишите проблему — постараемся оперативно помочь.")
+        await q.edit_message_text("✅ Тикет создан. Опишите Вашу проблему, как можно подробней.\n\nОбратите внимание❗\nВсе заявки обрабатываются в порядке очереди и на ответ может уйти до 24 часов. Ответ от менеджера придет только в этот бот - личные аккаунты не используются. Спасибо за терпение и понимание.")
         context.user_data.pop("creating_ticket", None)
 
 # Ensure logs thread exists (named "📊 Логи") (без изменений)
@@ -252,13 +252,14 @@ async def client_dm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # --- обработка текстового отзыва после оценки ---
     if context.user_data.get("await_review"):
         ticket_id = context.user_data["await_review"]
+        score = context.user_data.get("review_score")
         reviews_thread = await ensure_reviews_thread(context)
 
         try:
             await context.bot.send_message(
                 chat_id=CHANNEL_ID,
                 message_thread_id=reviews_thread,
-                text=f"⭐ Отзыв по тикету {ticket_id} от @{user.username or user.id}:\n\n{msg.text}"
+                text=f"⭐ Отзыв по тикету {ticket_id} от @{user.username or user.id}. Оценка {score} ⭐ \n\n{msg.text}"
             )
         except Exception as e:
             log.error("Failed to post review: %s", e)
@@ -430,6 +431,7 @@ async def rating_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(parts) != 3:
         return
     _, ticket_id, score = parts
+    context.user_data["review_score"] = score
     t = TICKETS.get(ticket_id)
     if not t:
         return
@@ -491,7 +493,7 @@ async def job_checker(context: ContextTypes.DEFAULT_TYPE):
                 log.error("Failed to send reminder: %s", e)
         # auto-close
         if hours >= AUTO_CLOSE_HOURS:
-            await do_close_ticket(context, ticket_id, reason="Авто-закрытие: нет активности 3 часа")
+            await do_close_ticket(context, ticket_id, reason="Авто-закрытие: нет активности 12 часов")
 
 # simple stats (private command) (без изменений)
 async def stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
