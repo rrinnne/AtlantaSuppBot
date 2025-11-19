@@ -10,7 +10,7 @@ from telegram.ext import (
 
 # Logging
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
-log = logging.getLogger("DivineVPN-TicketBot")
+log = logging.getLogger("Atlanta-TicketBot")
 
 # Load config
 with open("config.json", "r", encoding="utf-8") as f:
@@ -49,17 +49,17 @@ CONTENT = {
         "Куда пропали Моб.операторы?": "Теперь они называются Нидерланды 2 и Россия 2. Если они не работают, попробуйте использовать другие обходы - https://t.me/AtlantaVPNvideo/9",
         "Не работают «Белые списки»?": "Попробуйте, пожалуйста, обновить конфигурацию, заново добавить ключ в приложение или переустановить Happ.\n Попробуйте обязательно все обходы, которые доступны в подписке.\nОбходы работают только при белых списках, а не полном глушении интернета. \nУбедитесь, что используете именно обходы, а не основную подписку.\n Если все равно ни один обход не работает, то следите за обновлениями в нашем канале и в боте. Мы постоянно находимся в поиске новых обходов, обязательно найдется тот, который подойдет именно Вам!",
         "Можно купить обходы отдельно?": "Обходы — это доп. подписка к основной. Отдельно их купить нельзя.",
-        "Как купить гигабайты? ": "Гигабайты для обхода можно купить только для оплаченной основной подписки. Чтобы купить доп. гигабайты нужно в боте зайти в Мой профиль - Мои ключи - выбрать ваш ключ - Белые списки и нажать Купить гигабайты, далее следуете указаниям бота. Видеоинструкция - https://t.me/AtlantaVPNvideo/10",
+        "Как купить гигабайты? ": "Гигабайты для обхода можно купить только для оплаченной основной подписки. Чтобы купить доп. гигабайты нужно в боте зайти в «Мой профиль» - «Мои ключи» - выбрать ваш ключ - «Белые списки» и нажать «Купить гигабайты», далее следуете указаниям бота. Видеоинструкция - https://t.me/AtlantaVPNvideo/10",
     },
     "🚀 VPN": {
         "Как подключить VPN?": "Инструкции для всех устройств можете найти в посте - https://t.me/AtlantaVPN/31, либо в видео инструкции - https://t.me/AtlantaVPNvideo/10",
-        "Не работает VPN": "Попробуйте обновить конфигурацию и выбрать другую страну подключения. Если не помогло, то переустановите Happ",
+        "Не работает VPN": "Обычный VPN работает на wi-fi и на сотовой связи без белых списков.\nПопробуйте обновить конфигурацию и выбрать другую страну подключения. Если не помогло, то переустановите Happ.",
         "Низкая скорость при использовании VPN": "Попробуйте обновить конфигурацию и выбрать другую скорость подключения.",
         "Не работает TikTok (iOS)": "Попробуйте другую страну подключения и убедитесь, что регион в AppStore изменён (не Россия).",
     },
     "💳 Оплата": {
-        "Как вернуть деньги за VPN?": "Мы возвращаем деньги, если не работает VPN, не предназначенный для обхода, и мы не можем Вам помочь. ",
-        "Как отключить автоплатеж?": "Удалите метод оплаты в боте. Мой профиль -> Мой баланс -> Методы оплаты -> Удалить.",
+        "Как вернуть деньги за VPN?": "Мы возвращаем деньги, если не работает VPN, не предназначенный для обхода, и мы не можем Вам помочь.",
+        "Как отключить автоплатеж?": "Удалите метод оплаты в боте. Зайтите в бота @AtlantaVPN_bot -> «Мой профиль» -> «Мой баланс» -> «Методы оплаты» -> «Удалить».",
     },
     "❓ Другое": {
         "Сколько устройств можно подключить по одной подписке?": "Для каждого устройства нужна индивидуальная подписка",
@@ -142,11 +142,11 @@ def manager_thread_kb(ticket_id: str, taken_by: Optional[int]) -> InlineKeyboard
 
 def rating_kb(ticket_id: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([[
-        InlineKeyboardButton("1⭐️", callback_data=f"rate:{ticket_id}:1"),
-        InlineKeyboardButton("2️⭐️", callback_data=f"rate:{ticket_id}:2"),
-        InlineKeyboardButton("3️⭐️", callback_data=f"rate:{ticket_id}:3"),
-        InlineKeyboardButton("4️⭐️", callback_data=f"rate:{ticket_id}:4"),
-        InlineKeyboardButton("5️⭐️", callback_data=f"rate:{ticket_id}:5")
+        InlineKeyboardButton("1⭐", callback_data=f"rate:{ticket_id}:1"),
+        InlineKeyboardButton("2⭐", callback_data=f"rate:{ticket_id}:2"),
+        InlineKeyboardButton("3⭐", callback_data=f"rate:{ticket_id}:3"),
+        InlineKeyboardButton("4⭐", callback_data=f"rate:{ticket_id}:4"),
+        InlineKeyboardButton("5⭐", callback_data=f"rate:{ticket_id}:5")
     ]])
 
 async def ensure_reviews_thread(context: ContextTypes.DEFAULT_TYPE):
@@ -322,7 +322,7 @@ async def manager_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ticket["taken_by"] = q.from_user.id
         ticket["status"] = "in_progress"
         save_state(STATE)
-        await q.edit_message_text(f"✅ Тикет {ticket_id} взят {q.from_user.first_name}", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔒 Закрыть", callback_data=f"close:{ticket_id}"), InlineKeyboardButton("🔄 Передать", callback_data=f"transfer:{ticket_id}")]]))
+        await q.edit_message_text(f"✅ Тикет {ticket_id} взят {q.from_user.first_name}\n ID пользователя - {user_id}", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔒 Закрыть", callback_data=f"close:{ticket_id}"), InlineKeyboardButton("🔄 Передать", callback_data=f"transfer:{ticket_id}")]]))
         try:
             await context.bot.send_message(chat_id=user_id, text=f"✅ Менеджер подключился к вашему тикету.")
         except Exception as e:
